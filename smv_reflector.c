@@ -92,7 +92,9 @@ void smv_reflect(smv_reflector_t* reflector) {
     while (reflector->keep_running) {
         // defensive: default to sending keep alive packet,
 //        smv_packet_t* packet = keepalive_pkt;
-        smv_audio_packet_t* audio_packet = NULL;
+//        smv_audio_packet_t* audio_packet = NULL;
+        int16_t *audio_data = NULL;
+        uint32_t audio_data_len = 0;
 
         pthread_rwlock_rdlock(&reflector->vis->rwlock);
         // First sned anyt pending data
@@ -102,14 +104,21 @@ void smv_reflect(smv_reflector_t* reflector) {
             uint32_t samples1 = VIS_BUF_SIZE - reflector->sampled_buf_index;
             int16_t* p2 = reflector->vis->buffer;
             uint32_t samples2 = reflector->vis->buf_index;
-            audio_packet = smv_create_audio_packet_2(reflector->sender, p1, samples1, p2, samples2);
+            audio_data = calloc(samples1 + samples2, sizeof(*audio_data));
+            memcpy(audio_data, p1, samples1*sizeof(*audio_data));
+            memcpy(audio_data+samples1, p2, samples2*sizeof(*audio_data));
+            audio_data_len = samples1+samples2;
+//            audio_packet = smv_create_audio_packet_2(reflector->sender, p1, samples1, p2, samples2);
 #ifdef DEBUG
             printf("\n#%u, ", samples1 + samples2);
 #endif
         } else if (reflector->vis->buf_index > reflector->sampled_buf_index) {
             int16_t* p = reflector->vis->buffer + reflector->sampled_buf_index;
             uint32_t samples = reflector->vis->buf_index - reflector->sampled_buf_index;
-            audio_packet = smv_create_audio_packet(reflector->sender, p, samples);
+            audio_data = calloc(samples, sizeof(*audio_data));
+            memcpy(audio_data, p, samples*sizeof(*audio_data));
+            audio_data_len = samples;
+//            audio_packet = smv_create_audio_packet(reflector->sender, p, samples);
             silent = false;
 #ifdef DEBUG
             printf("%u, ", samples);
@@ -125,15 +134,27 @@ void smv_reflect(smv_reflector_t* reflector) {
         } else {
             // No change in status;
         }
-        if (audio_packet) {
+//        if (audio_packet) {
+        if (audio_data) {
             reflector->sampled_buf_index = reflector->vis->buf_index;
         }
         pthread_rwlock_unlock(&reflector->vis->rwlock);
 
         // if and audio packet was created successfully, send that
-        if (audio_packet) {
-            smv_send_audio_packet(reflector->sender, audio_packet);
-            smv_destroy_audio_packet(reflector->sender, &audio_packet);
+//        if (audio_packet) {
+        if (audio_data) {
+            smv_audio_packet_t* audio_packet = smv_create_audio_packet(reflector->sender, audio_data, audio_data_len);
+            if (audio_packet) {
+                smv_send_audio_packet(reflector->sender, audio_packet);
+                smv_destroy_audio_packet(reflector->sender, &audio_packet);
+            } else {
+#ifdef DEBUG
+                    putchar('*');
+#endif
+            }
+            free(audio_data);
+            audio_data = NULL;
+            audio_data_len = 0;
         } else {
             if (++send_packet_counter >= MAX_SEND_PACKET_COUNT_VALUE) {
                 send_packet_counter = 0;
