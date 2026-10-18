@@ -12,10 +12,21 @@ struct smv_replicator_s {
     vis_t* vis_mmap;
     smv_receiver_t* receiver;
     mac_address_t mac_addr;
+    uint64_t  total_frames_received;
 #ifdef DEBUG
     bool vbo_printed;
 #endif
 };
+
+static void reset(smv_replicator_t* replicator) {
+    pthread_rwlock_wrlock(&replicator->vis_mmap->rwlock);
+    replicator->vis_mmap->buf_index = 0;
+    memset(replicator->vis_mmap->buffer, 0, sizeof(replicator->vis_mmap->buffer));
+    pthread_rwlock_unlock(&replicator->vis_mmap->rwlock);
+#ifdef DEBUG
+    putchar('R');
+#endif
+}
 
 void smv_destroy_replicator(smv_replicator_t** replicator_ptr) {
     if (replicator_ptr && *replicator_ptr) {
@@ -108,7 +119,9 @@ smv_replicator_t* smv_create_replicator(mac_address_t mac_addr, smv_receiver_t* 
 
 static void _smv_update_replicator(smv_replicator_t* replicator, int16_t* samples, uint32_t sample_count) {
     if (replicator->vis_mmap) {
+#ifndef     REPL_MINIMAL_LOCK_TIME
         pthread_rwlock_wrlock(&replicator->vis_mmap->rwlock);
+#endif
         if (sample_count) {
             uint32_t avail = VIS_BUF_SIZE - replicator->vis_mmap->buf_index;
             if (avail < sample_count) {
@@ -123,40 +136,77 @@ static void _smv_update_replicator(smv_replicator_t* replicator, int16_t* sample
                 printf("%u, ", sample_count);
 #endif
             }
+#ifdef      REPL_MINIMAL_LOCK_TIME
+            // minimal lock time works on the basis
+            // 1 - there is a single producer (this code)
+            // 2 - readers are unlikely to the reading the data just written 
+            //     unless they are sampling close to the whole buffer.
+            // Therefore in sequence,
+            //   - updating the shared buffer (overwriting the tail end of a circular buffer),
+            //   - acquiring the lock, updating the index, releasing the lock
+            // will not result in clients reading invalid data. 
+            memcpy(replicator->vis_mmap->buffer + replicator->vis_mmap->buf_index, samples, sample_count);
+            pthread_rwlock_wrlock(&replicator->vis_mmap->rwlock);
+            replicator->vis_mmap->buf_index = (replicator->vis_mmap->buf_index + sample_count) % VIS_BUF_SIZE;
+            pthread_rwlock_unlock(&replicator->vis_mmap->rwlock);
+#else
             memcpy(replicator->vis_mmap->buffer + replicator->vis_mmap->buf_index, samples, sample_count);
             replicator->vis_mmap->buf_index = (replicator->vis_mmap->buf_index + sample_count) % VIS_BUF_SIZE;
+#endif
         }
+#ifndef     REPL_MINIMAL_LOCK_TIME
         pthread_rwlock_unlock(&replicator->vis_mmap->rwlock);
+#endif
     }
 }
 
 bool smv_update_replicator(smv_replicator_t* replicator, smv_packet_t* packet) {
     if (replicator->vis_mmap && 0 == memcmp(packet->player_mac, replicator->mac_addr, sizeof(replicator->mac_addr))) {
 #ifdef DEBUG
-    if (!replicator->vbo_printed) {
-        printf("receiver vbo %hx network-order=%s version=%hd\n",
-            packet->vbo,
-            (packet->vbo & BYTEORDER_MASK) ? "true" : "false",
-            (packet->vbo & VERSION_MASK)
-            );
-        replicator->vbo_printed = true;
-    }
-    switch (packet->pkt_id) {
-        case SMV_PKT_KEEPALIVE:
-            putchar('k');
-            break;
-        case SMV_PKT_AUDIO_SILENT:
-            putchar('s');
-            break;
-        case SMV_PKT_AUDIO_SAMPLES:
-            putchar('a');
-            break;
-        default:
-            putchar('X');
-            break;
-    }
+        if (!replicator->vbo_printed) {
+            printf("receiver vbo %hx network-order=%s version=%hd\n",
+                packet->vbo,
+                (packet->vbo & BYTEORDER_MASK) ? "true" : "false",
+                (packet->vbo & VERSION_MASK)
+                );
+            replicator->vbo_printed = true;
+        }
 #endif
+        switch (packet->pkt_id) {
+            case SMV_PKT_KEEPALIVE:
+                if (packet->total_frames - replicator->total_frames_received > sizeof(replicator->vis_mmap->buffer)/2) {
+                    reset(replicator);
+                    replicator->total_frames_received = packet->total_frames;
+                }
+#ifdef  DEBUG
+                putchar('k');
+#endif
+                break;
+            case SMV_PKT_AUDIO_SILENT:
+                if (packet->total_frames - replicator->total_frames_received > sizeof(replicator->vis_mmap->buffer)/2) {
+                    reset(replicator);
+                    replicator->total_frames_received = packet->total_frames;
+                }
+#ifdef  DEBUG
+                putchar('s');
+#endif
+                break;
+            case SMV_PKT_AUDIO_SAMPLES:
+                if (packet->total_frames - replicator->total_frames_received > ((smv_audio_packet_t*)packet)->sample_count/2) {
+                    reset(replicator);
+                }
+#ifdef  DEBUG
+                putchar('a');
+#endif
+                replicator->total_frames_received = packet->total_frames;
+                break;
+            default:
+                putchar('X');
+                break;
+        }
+
         replicator->vis_mmap->updated = time(NULL);
+//TODO: handle packet total frames        
         switch (packet->pkt_id) {
             case SMV_PKT_KEEPALIVE:
                 break;

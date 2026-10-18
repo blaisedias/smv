@@ -1,34 +1,20 @@
-CFLAGS=-g -O3 -Wall -Wextra -DDEBUG
-all: smv_reflector smv_replicator
+CFLAGS=-g -O3 -Wall -Wextra -DDEBUG -DREPL_MINIMAL_LOCK_TIME
+all: smv_reflector smv_replicator sizes
 
-smv_replicator.c: smv.h
-
-smv_replicate.c: smv.h
-
-smv_reflector.c: smv.h
-
-smv_sender.c: smv.h
-
-smv_receiver.c: smv.h
-
-sizes.c: smv.h
-
-smv_sender.o: smv_sender.c
+smv_sender.o: smv_sender.c smv.h Makefile
 	gcc $(CFLAGS) -Wall -Wextra -c smv_sender.c
 
-smv_receiver.o: smv_receiver.c
+smv_receiver.o: smv_receiver.c smv.h Makefile
 	gcc $(CFLAGS) -Wall -Wextra -c smv_receiver.c
 
-smv_reflector.o: smv_reflector.c
+smv_reflector.o: smv_reflector.c smv.h Makefile
 	gcc $(CFLAGS) -Wall -Wextra -c smv_reflector.c
 
-smv_replicate.o: smv_replicate.c
+smv_replicate.o: smv_replicate.c smv.h Makefile
 	gcc $(CFLAGS) -Wall -Wextra -c smv_replicate.c
 
-sizes.o: sizes.c
+sizes.o: sizes.c smv.h Makefile
 	gcc $(CFLAGS) -Wall -Wextra -c sizes.c
-
-
 
 smv_reflector: smv_reflector.o smv_sender.o
 	gcc $(CFLAGS) -Wall -Wextra -o smv_reflector smv_reflector.o smv_sender.o
@@ -36,7 +22,7 @@ smv_reflector: smv_reflector.o smv_sender.o
 smv_replicator: smv_replicator.o smv_receiver.o smv_replicate.o
 	gcc $(CFLAGS) -Wall -Wextra -o smv_replicator smv_replicator.o smv_receiver.o smv_replicate.o
 
-sizes: sizes.c
+sizes: sizes.o
 	gcc $(CFLAGS) -Wall -Wextra -o sizes sizes.o
 
 .PHONY: clean

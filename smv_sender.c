@@ -9,7 +9,7 @@ struct smv_sender_s {
     mac_address_t player_mac;
     uint16_t vbo;
     // total count of frames sent
-    uint64_t total_frames;
+    uint64_t total_frames_sent;
     // keep_alive_packet
     smv_packet_t keep_alive_packet;
     // silent audio packet
@@ -104,20 +104,20 @@ static void __smv_send_packet(smv_sender_t* sender, smv_packet_t* pkt) {
 
 // send audio packet
 void smv_send_audio_packet(smv_sender_t* sender, smv_audio_packet_t* pkt) {
-    sender->total_frames += pkt->sample_count / 2;
-    pkt->header.total_frames = sender->total_frames;
+    sender->total_frames_sent += pkt->sample_count / 2;
+    pkt->header.total_frames = sender->total_frames_sent;
     __smv_send_packet(sender, (smv_packet_t*)pkt);
 }
 
 // send keep alive packet
 void smv_send_keep_alive(smv_sender_t* sender) {
-    sender->keep_alive_packet.total_frames = sender->total_frames;
+    sender->keep_alive_packet.total_frames = sender->total_frames_sent;
     __smv_send_packet(sender, &sender->keep_alive_packet);
 }
 
 // send silent audio packet
 void smv_send_silent(smv_sender_t* sender) {
-    sender->silent_packet.total_frames = sender->total_frames;
+    sender->silent_packet.total_frames = sender->total_frames_sent;
     __smv_send_packet(sender, &sender->silent_packet);
 }
 
@@ -188,5 +188,24 @@ void smv_send_packet(smv_sender_t* sender, smv_packet_t* pkt) {
         case SMV_PKT_AUDIO_SAMPLES:
             smv_send_audio_packet(sender, (smv_audio_packet_t*)pkt);
             break;
+    }
+}
+
+void smv_send_data(smv_sender_t* sender, int16_t* data, uint32_t sample_count) {
+    smv_audio_mtu_packet_t pkt;
+    // setup the invariant part of the audio packet
+    mac_address_cpy(pkt.header.player_mac, sender->player_mac);
+    pkt.header.vbo = sender->vbo;
+    pkt.header.pkt_id = SMV_PKT_AUDIO_SAMPLES;
+
+    while(sample_count) {
+        uint32_t pkt_sample_count = sample_count > MTU_SAMPLE_COUNT ? MTU_SAMPLE_COUNT : sample_count;
+        pkt.header.payload_len =  (pkt_sample_count * sizeof(*data)) + sizeof(smv_audio_packet_t) - sizeof(smv_packet_t);
+        pkt.sample_count = pkt_sample_count;
+        memcpy(pkt.samples, data, sizeof(pkt.samples[0]) * sample_count);
+        smv_send_audio_packet(sender, (smv_audio_packet_t*)&pkt);
+        // advance
+        data += sample_count;
+        sample_count -= pkt_sample_count;
     }
 }

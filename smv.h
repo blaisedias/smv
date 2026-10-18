@@ -107,8 +107,18 @@ typedef struct {
     // number of samples
     uint16_t sample_count;
     // 16 bit samples
-    int16_t samples[2];
+    int16_t samples[0];
 } __attribute__((packed)) smv_audio_packet_t;
+
+#define MTU_STEREO_SAMPLE_COUNT     360
+#define MTU_SAMPLE_COUNT            MTU_STEREO_SAMPLE_COUNT*2
+typedef struct {
+    smv_packet_t header;
+    // number of samples
+    uint16_t sample_count;
+    // 16 bit samples
+    int16_t samples[MTU_SAMPLE_COUNT];
+} __attribute__((packed)) smv_audio_mtu_packet_t;
 
 // 239.0.0.0-239.255.255.255 	Organization-Local Scope 	[David_Meyer][RFC 2365]
 // The IPv4 Local Scope -- 239.255.0.0/16
@@ -137,6 +147,7 @@ smv_audio_packet_t* smv_create_audio_packet(smv_sender_t* sender, int16_t* sampl
 smv_audio_packet_t* smv_create_audio_packet_2(smv_sender_t* sender, int16_t* samples_1, uint32_t sample_count_1, int16_t* samples_2,
                                               uint32_t sample_count_2);
 void smv_destroy_audio_packet(smv_sender_t* sender, smv_audio_packet_t** packet);
+void smv_send_data(smv_sender_t*, int16_t* data, uint32_t sample_count);
 //----------------------------------------------------------------------------
 
 //----------------------------------------------------------------------------

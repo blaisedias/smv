@@ -11,6 +11,7 @@ int main() {
 
     printf("sizeof(smv_packet_t) %ld\n", sizeof(smv_packet_t));
     printf("sizeof(smv_audio_packet_t) %ld\n", sizeof(smv_audio_packet_t));
+    printf("sizeof(smv_audio_mtu_packet_t) %ld\n", sizeof(smv_audio_mtu_packet_t));
 
     return 0;
 }
