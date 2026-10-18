@@ -202,7 +202,7 @@ void smv_send_data(smv_sender_t* sender, int16_t* data, uint32_t sample_count) {
         uint32_t pkt_sample_count = sample_count > MTU_SAMPLE_COUNT ? MTU_SAMPLE_COUNT : sample_count;
         pkt.header.payload_len =  (pkt_sample_count * sizeof(*data)) + sizeof(smv_audio_packet_t) - sizeof(smv_packet_t);
         pkt.sample_count = pkt_sample_count;
-        memcpy(pkt.samples, data, sizeof(pkt.samples[0]) * sample_count);
+        memcpy(pkt.samples, data, sizeof(pkt.samples[0]) * pkt_sample_count);
         smv_send_audio_packet(sender, (smv_audio_packet_t*)&pkt);
         // advance
         data += sample_count;
