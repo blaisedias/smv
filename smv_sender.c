@@ -141,6 +141,10 @@ smv_sender_t* smv_create_sender(smv_if_addr_t ifaddr, uint16_t version) {
         smv_destroy_sender(&sender);
         return sender;
     }
+    int ttl = 60;
+    if (setsockopt(sender->sock_fd, IPPROTO_IP, IP_MULTICAST_IF, (char*)&ttl, sizeof(ttl)) < 0) {
+        perror("Setting ttl");
+    }
     return sender;
 }
 
