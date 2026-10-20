@@ -38,7 +38,7 @@ int main(int argc, char** argv) {
                         ) {
                     if (inet_pton(AF_INET, ip, &ifaddr.ipv4) == 1) {
                         if (smv_receiver_join(receiver, ifaddr)) {
-                            replicators[num_replicators] = smv_create_replicator(ifaddr, receiver);
+                            replicators[num_replicators] = smv_create_replicator(ifaddr);
                             if (replicators[num_replicators]) {
                                 ++num_replicators;
                                 keep_running = true;
