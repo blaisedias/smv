@@ -31,9 +31,9 @@ void smv_teardown_reflector(smv_reflector_t* reflector) {
     }
 }
 
-bool smv_init_reflector(smv_reflector_t* reflector, mac_address_t mac_addr) {
+bool smv_init_reflector(smv_reflector_t* reflector, smv_if_addr_t ifaddr) {
     (void)replica_sig;
-    if (NULL == reflector || NULL == mac_addr) {
+    if (NULL == reflector) {
         return false;
     }
     reflector->shm_fd = -1;
@@ -42,8 +42,9 @@ bool smv_init_reflector(smv_reflector_t* reflector, mac_address_t mac_addr) {
     reflector->sender = NULL;
 
     char shm_path[32];
-    snprintf(shm_path, sizeof(shm_path), "/squeezelite-%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2],
-             mac_addr[3], mac_addr[4], mac_addr[5]);
+    snprintf(shm_path, sizeof(shm_path), "/squeezelite-%02x:%02x:%02x:%02x:%02x:%02x",
+            ifaddr.mac_addr[0], ifaddr.mac_addr[1], ifaddr.mac_addr[2],
+            ifaddr.mac_addr[3], ifaddr.mac_addr[4], ifaddr.mac_addr[5]);
 
     reflector->shm_fd = shm_open(shm_path, O_RDWR, 0666);
     if (reflector->shm_fd == -1) {
@@ -70,7 +71,7 @@ bool smv_init_reflector(smv_reflector_t* reflector, mac_address_t mac_addr) {
     if (reflector->vis == MAP_FAILED) {
         smv_teardown_reflector(reflector);
     } else {
-        reflector->sender = smv_create_sender(mac_addr, SMV_VERSION);
+        reflector->sender = smv_create_sender(ifaddr, SMV_VERSION);
         if (NULL != reflector->sender) {
             pthread_rwlock_rdlock(&reflector->vis->rwlock);
             reflector->sampled_buf_index = reflector->vis->buf_index;
@@ -221,6 +222,8 @@ void handle_signal(int sig) {
     }
 }
 
+extern int platform_get_if_addresses(smv_if_addr_t* smv_ifaddrs, int size);
+
 int main() {
     smv_reflector_t refl;
 
@@ -228,12 +231,26 @@ int main() {
     signal(SIGTERM, handle_signal);
     signal(SIGHUP, handle_signal);
 
+    /*
     mac_address_t macs[16];
     memset(macs, 0, sizeof(macs));
     int count = platform_get_mac_addresses(macs, 16);
-    if (count == 1) {
-        fprintf(stderr, "%02x:%02x:%02x:%02x:%02x:%02x\n", macs[0][0], macs[0][1], macs[0][2], macs[0][3], macs[0][4], macs[0][5]);
-        if (smv_init_reflector(&refl, macs[0])) {
+    */
+    smv_if_addr_t ifaddrs[16];
+    int count = platform_get_if_addresses(ifaddrs, 16);
+    if (count == 0) {
+        fprintf(stderr, "no network interfaces found\n");
+    } else if (count == 1) {
+        fprintf(stderr, "%02x:%02x:%02x:%02x:%02x:%02x\n",
+                ifaddrs[0].mac_addr[0],
+                ifaddrs[0].mac_addr[1],
+                ifaddrs[0].mac_addr[2],
+                ifaddrs[0].mac_addr[3],
+                ifaddrs[0].mac_addr[4],
+                ifaddrs[0].mac_addr[5]
+               );
+
+        if (smv_init_reflector(&refl, ifaddrs[0])) {
             printf("Init reflector OK\n");
             fflush(stdout);
         }
@@ -243,13 +260,25 @@ int main() {
     } else {
         printf("Multiple mac addresses\n");
         for (int i = 0; i < count; ++i) {
-            printf("%d) %02x:%02x:%02x:%02x:%02x:%02x\n", i, macs[i][0], macs[i][1], macs[i][2], macs[i][3], macs[i][4],
-                   macs[i][5]);
+            printf("%d) %02x:%02x:%02x:%02x:%02x:%02x\n", i,
+                ifaddrs[i].mac_addr[0],
+                ifaddrs[i].mac_addr[1],
+                ifaddrs[i].mac_addr[2],
+                ifaddrs[i].mac_addr[3],
+                ifaddrs[i].mac_addr[4],
+                ifaddrs[i].mac_addr[5]
+               );
         }
         for (int i = 0; i < count; ++i) {
-            printf("trying %02x:%02x:%02x:%02x:%02x:%02x\n", macs[i][0], macs[i][1], macs[i][2], macs[i][3], macs[i][4],
-                   macs[i][5]);
-            if (smv_init_reflector(&refl, macs[i])) {
+            printf("trying %02x:%02x:%02x:%02x:%02x:%02x\n",
+                ifaddrs[i].mac_addr[0],
+                ifaddrs[i].mac_addr[1],
+                ifaddrs[i].mac_addr[2],
+                ifaddrs[i].mac_addr[3],
+                ifaddrs[i].mac_addr[4],
+                ifaddrs[i].mac_addr[5]
+                );
+            if (smv_init_reflector(&refl, ifaddrs[i])) {
                 printf("Init reflector OK\n");
                 fflush(stdout);
                 keep_running_ptr = &refl.keep_running;

@@ -67,6 +67,11 @@ enum {
 
 typedef uint8_t mac_address_t[6];
 
+typedef struct {
+    uint32_t        ipv4;
+    mac_address_t   mac_addr;
+}smv_if_addr_t;
+
 // Serialisation convention:
 // vbo is the only member which is in network order
 // all other fields are in sender byte order
@@ -135,7 +140,7 @@ typedef struct smv_replicator_s smv_replicator_t;
 //----------------------------------------------------------------------------
 // sender interface
 void smv_destroy_sender(smv_sender_t** sender);
-smv_sender_t* smv_create_sender(mac_address_t player_mac, uint16_t version);
+smv_sender_t* smv_create_sender(smv_if_addr_t ifaddr, uint16_t version);
 
 void smv_send_audio_packet(smv_sender_t* sender, smv_audio_packet_t* pkt);
 void smv_send_keep_alive(smv_sender_t* sender);
@@ -154,6 +159,7 @@ void smv_send_data(smv_sender_t*, int16_t* data, uint32_t sample_count);
 // receiver interface
 void smv_destroy_receiver(smv_receiver_t** receiver);
 smv_receiver_t* smv_create_receiver();
+bool smv_receiver_join(smv_receiver_t* receiver, smv_if_addr_t ifaddr);
 // receiver sockets are set non blocking, so this call returns immediately
 // if no data is available. Callers should sleep between calls when looping on
 // calls to smv_receive
@@ -163,7 +169,7 @@ smv_packet_t* smv_receive(smv_receiver_t* receiver, uint8_t* buffer, size_t buff
 //----------------------------------------------------------------------------
 // replicator interface
 void smv_destroy_replicator(smv_replicator_t** replicator_ptr);
-smv_replicator_t* smv_create_replicator(mac_address_t mac_addr, smv_receiver_t* receiver);
+smv_replicator_t* smv_create_replicator(smv_if_addr_t ifaddr);
 bool smv_update_replicator(smv_replicator_t* replicator, smv_packet_t* packet);
 
 static inline void mac_address_cpy(mac_address_t dest, mac_address_t src) {

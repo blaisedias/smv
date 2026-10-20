@@ -20,6 +20,53 @@ struct smv_sender_s {
     struct sockaddr_in groupSock;
 };
 
+int platform_get_if_addresses(smv_if_addr_t* smv_ifaddrs, int size) {
+
+    static mac_address_t zeromac = {0, 0, 0, 0, 0, 0};
+    struct ifconf ifc;
+    struct ifreq *ifr, *ifend;
+    struct ifreq ifreq;
+    struct ifreq ifs[size - 1];
+    int count = 0;
+
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
+
+    ifc.ifc_len = sizeof(ifs);
+    ifc.ifc_req = ifs;
+
+    if (ioctl(s, SIOCGIFCONF, &ifc) == 0) {
+        ifend = ifs + (ifc.ifc_len / sizeof(struct ifreq));
+
+        for (ifr = ifc.ifc_req; ifr < ifend; ifr++) {
+            if (ifr->ifr_addr.sa_family == AF_INET) {
+                strncpy(ifreq.ifr_name, ifr->ifr_name, sizeof(ifreq.ifr_name));
+                if (ioctl(s, SIOCGIFADDR, &ifreq) == 0) {
+                    /*
+                    uint32_t server_ip = ((struct sockaddr_in*)&ifreq.ifr_addr)->sin_addr.s_addr;
+                    char str[INET_ADDRSTRLEN];
+                    inet_ntop(AF_INET, &(server_ip), str, INET_ADDRSTRLEN);
+                    printf("%08x %s\n", server_ip, str);
+                    */
+                    smv_ifaddrs[count].ipv4 = ((struct sockaddr_in*)&ifreq.ifr_addr)->sin_addr.s_addr;
+                }
+                if (ioctl(s, SIOCGIFHWADDR, &ifreq) == 0) {
+                    memcpy(smv_ifaddrs[count].mac_addr, ifreq.ifr_hwaddr.sa_data, 6);
+                    if (memcmp(zeromac, smv_ifaddrs[count].mac_addr, sizeof(zeromac))) {
+                        // skip lo interface
+                        ++count;
+                    } else {
+                        smv_ifaddrs[count].ipv4 = 0;
+                    }
+                } else {
+                    smv_ifaddrs[count].ipv4 = 0;
+                }
+            }
+        }
+    }
+    close(s);
+    return count;
+}
+
 void smv_destroy_sender(smv_sender_t** sender) {
     if (*sender) {
         if ((*sender)->sock_fd >= 0) {
@@ -31,7 +78,7 @@ void smv_destroy_sender(smv_sender_t** sender) {
     }
 }
 
-smv_sender_t* smv_create_sender(mac_address_t player_mac, uint16_t version) {
+smv_sender_t* smv_create_sender(smv_if_addr_t ifaddr, uint16_t version) {
     const char* interface_ip = INTERFACE_IP;
     struct in_addr localInterface;
 
@@ -41,7 +88,7 @@ smv_sender_t* smv_create_sender(mac_address_t player_mac, uint16_t version) {
     }
     memset(sender, 0, sizeof(&sender));
     sender->sock_fd = -1;
-    mac_address_cpy(sender->player_mac, player_mac);
+    mac_address_cpy(sender->player_mac, ifaddr.mac_addr);
     sender->vbo = MAKE_VBO(version);
 #ifdef DEBUG
     printf("sender vbo %hx network-order=%s version=%hd\n",
@@ -50,11 +97,11 @@ smv_sender_t* smv_create_sender(mac_address_t player_mac, uint16_t version) {
             version);
 #endif
 
-    mac_address_cpy(sender->keep_alive_packet.player_mac, player_mac);
+    mac_address_cpy(sender->keep_alive_packet.player_mac, ifaddr.mac_addr);
     sender->keep_alive_packet.vbo = sender->vbo;
     sender->keep_alive_packet.pkt_id = SMV_PKT_KEEPALIVE;
 
-    mac_address_cpy(sender->silent_packet.player_mac, player_mac);
+    mac_address_cpy(sender->silent_packet.player_mac, ifaddr.mac_addr);
     sender->silent_packet.vbo = sender->vbo;
     sender->silent_packet.pkt_id = SMV_PKT_AUDIO_SILENT;
 
@@ -69,8 +116,14 @@ smv_sender_t* smv_create_sender(mac_address_t player_mac, uint16_t version) {
     memset((char*)&sender->groupSock, 0, sizeof(sender->groupSock));
     sender->groupSock.sin_family = AF_INET;
     sender->groupSock.sin_addr.s_addr = inet_addr(SMV_GROUP1);
+    sender->groupSock.sin_addr.s_addr &= 0x00ffffff;
+    sender->groupSock.sin_addr.s_addr |= ifaddr.ipv4 &= 0xff000000;
+    {
+        char str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &sender->groupSock.sin_addr.s_addr, str, INET_ADDRSTRLEN);
+        printf("multicasting on %s\n", str);
+    }
     sender->groupSock.sin_port = htons(SMV_MCAST_PORT);
-
     {
         // turn off multicast loopback to same host
         char loopch = 0;

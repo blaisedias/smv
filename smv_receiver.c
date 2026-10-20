@@ -54,9 +54,9 @@ void smv_destroy_receiver(smv_receiver_t** receiver) {
 }
 
 smv_receiver_t* smv_create_receiver() {
-    const char* interface_ip = INTERFACE_IP;
+//    const char* interface_ip = INTERFACE_IP;
     struct sockaddr_in localSock;
-    struct ip_mreq group;
+//    struct ip_mreq group;
 
     smv_receiver_t* receiver = calloc(1, sizeof(*receiver));
     if (NULL == receiver) {
@@ -89,15 +89,36 @@ smv_receiver_t* smv_create_receiver() {
         return receiver;
     }
 
-    // Join the multicast group
-    group.imr_multiaddr.s_addr = inet_addr(SMV_GROUP1);
-    group.imr_interface.s_addr = inet_addr(interface_ip);
-    if (setsockopt(receiver->sock_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&group, sizeof(group)) < 0) {
-        perror("Adding multicast group error");
-        smv_destroy_receiver(&receiver);
-        return receiver;
-    }
+//    // Join the multicast group
+//    group.imr_multiaddr.s_addr = inet_addr(SMV_GROUP1);
+//    group.imr_interface.s_addr = inet_addr(interface_ip);
+//    if (setsockopt(receiver->sock_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&group, sizeof(group)) < 0) {
+//        perror("Adding multicast group error");
+//        smv_destroy_receiver(&receiver);
+//        return receiver;
+//    }
     return receiver;
+}
+
+bool smv_receiver_join(smv_receiver_t* receiver, smv_if_addr_t ifaddr) {
+    const char* interface_ip = INTERFACE_IP;
+    struct ip_mreq group;
+    // Join the multicast group
+    group.imr_interface.s_addr = inet_addr(interface_ip);
+    group.imr_multiaddr.s_addr = inet_addr(SMV_GROUP1);
+    group.imr_multiaddr.s_addr &= 0x00ffffff;
+    group.imr_multiaddr.s_addr |= ifaddr.ipv4 &= 0xff000000;
+    {
+        char str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &group.imr_multiaddr.s_addr, str, INET_ADDRSTRLEN);
+        printf("multicast receive on %s\n", str);
+    }
+
+    if (setsockopt(receiver->sock_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (char*)&group, sizeof(group)) < 0) {
+        return false;
+    }
+
+    return true;
 }
 
 // receiver sockets are set non blocking, so this call returns immediately

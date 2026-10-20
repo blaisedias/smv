@@ -10,7 +10,6 @@ struct smv_replicator_s {
     int shm_fd;
     vis_ext_t* vis_ext;
     vis_t* vis_mmap;
-    smv_receiver_t* receiver;
     mac_address_t mac_addr;
     uint64_t  total_frames_received;
 #ifdef DEBUG
@@ -31,7 +30,6 @@ static void reset(smv_replicator_t* replicator) {
 void smv_destroy_replicator(smv_replicator_t** replicator_ptr) {
     if (replicator_ptr && *replicator_ptr) {
         smv_replicator_t* replicator = *replicator_ptr;
-        replicator->receiver = NULL;
         replicator->vis_mmap = NULL;
         if (replicator->shm_fd > -1) {
             if (replicator->vis_ext != MAP_FAILED) {
@@ -53,11 +51,7 @@ void smv_destroy_replicator(smv_replicator_t** replicator_ptr) {
 }
 
 // derived from squeezelite output_vis.c
-smv_replicator_t* smv_create_replicator(mac_address_t mac_addr, smv_receiver_t* receiver) {
-    if (NULL == mac_addr) {
-        return NULL;
-    }
-
+smv_replicator_t* smv_create_replicator(smv_if_addr_t ifaddr) {
     smv_replicator_t* replicator = calloc(1, sizeof(*replicator));
     if (NULL == replicator) {
         return NULL;
@@ -65,11 +59,15 @@ smv_replicator_t* smv_create_replicator(mac_address_t mac_addr, smv_receiver_t* 
 
     replicator->shm_fd = -1;
     replicator->vis_ext = MAP_FAILED;
-    replicator->receiver = receiver;
-    mac_address_cpy(replicator->mac_addr, mac_addr);
+    mac_address_cpy(replicator->mac_addr, ifaddr.mac_addr);
     char shm_path[32];
-    snprintf(shm_path, sizeof(shm_path), "/squeezelite-%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2],
-             mac_addr[3], mac_addr[4], mac_addr[5]);
+    snprintf(shm_path, sizeof(shm_path), "/squeezelite-%02x:%02x:%02x:%02x:%02x:%02x",
+            ifaddr.mac_addr[0], 
+            ifaddr.mac_addr[1], 
+            ifaddr.mac_addr[2],
+            ifaddr.mac_addr[3],
+            ifaddr. mac_addr[4], 
+            ifaddr.mac_addr[5]);
 
     // TODO: if the shm exists, and is of size vis_ext_t, and has replicator signature
     // and process with owner_pid no longer exists, re-use and set this process as
@@ -193,6 +191,10 @@ bool smv_update_replicator(smv_replicator_t* replicator, smv_packet_t* packet) {
                 break;
             case SMV_PKT_AUDIO_SAMPLES:
                 if (packet->total_frames - replicator->total_frames_received > ((smv_audio_packet_t*)packet)->sample_count/2) {
+                    printf("R -> %ld %d\n",
+                            packet->total_frames - replicator->total_frames_received,
+                            ((smv_audio_packet_t*)packet)->sample_count/2);
+                    fflush(stdout);
                     reset(replicator);
                 }
 #ifdef  DEBUG

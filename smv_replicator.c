@@ -26,20 +26,34 @@ int main(int argc, char** argv) {
 
     int num_replicators = 0;
     for (int ix = 1; ix < argc; ++ix) {
-        if (strlen(argv[ix]) == 17) {
-            mac_address_t mac_addr;
-            if (6 == sscanf(argv[ix], "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
-                        &mac_addr[0], &mac_addr[1], &mac_addr[2],
-                        &mac_addr[3], &mac_addr[4], &mac_addr[5])
-                    ) {
-                replicators[num_replicators] = smv_create_replicator(mac_addr, receiver);
-                if (replicators[num_replicators]) {
-                    ++num_replicators;
-                    keep_running = true;
-                    printf("Replicating player %s\n", argv[ix]);
+            char* mac = strdup(argv[ix]);
+            char* ip = strchr(mac, ','); 
+            if (strlen(mac) >= 17 && ip) {
+                *ip = 0;
+                ++ip;
+                smv_if_addr_t ifaddr;
+                if (6 == sscanf(argv[ix], "%2hhx:%2hhx:%2hhx:%2hhx:%2hhx:%2hhx",
+                            &ifaddr.mac_addr[0], &ifaddr.mac_addr[1], &ifaddr.mac_addr[2],
+                            &ifaddr.mac_addr[3], &ifaddr.mac_addr[4], &ifaddr.mac_addr[5])
+                        ) {
+                    if (inet_pton(AF_INET, ip, &ifaddr.ipv4) == 1) {
+                        if (smv_receiver_join(receiver, ifaddr)) {
+                            replicators[num_replicators] = smv_create_replicator(ifaddr, receiver);
+                            if (replicators[num_replicators]) {
+                                ++num_replicators;
+                                keep_running = true;
+                                printf("Replicating player %s\n", argv[ix]);
+                            }
+                        } else {
+                            fprintf(stderr, "receiver failed to join multicast group");
+                        }
+                    } else {
+                        fprintf(stderr, "invalid IP address '%s'\n", ip);
+                    }
                 }
+            } else {
+                fprintf(stderr, "arguments must be in the format, '<mac address,IP address>' for example '01:23:45:67:98:ab,192.168.123.456'\n");
             }
-        }
     }
     keep_running_ptr = &keep_running;
     uint64_t* u64buff = calloc(16384 / sizeof(*u64buff), sizeof(*u64buff));

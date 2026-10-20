@@ -1,4 +1,5 @@
 CFLAGS=-g -O3 -Wall -Wextra -DDEBUG -DREPL_MINIMAL_LOCK_TIME
+#CFLAGS=-g -O3 -Wall -Wextra -DREPL_MINIMAL_LOCK_TIME
 all: smv_reflector smv_replicator sizes
 
 smv_sender.o: smv_sender.c smv.h Makefile
