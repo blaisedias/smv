@@ -121,7 +121,14 @@ smv_sender_t* smv_create_sender(smv_if_addr_t ifaddr, uint16_t version) {
     {
         char str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &sender->groupSock.sin_addr.s_addr, str, INET_ADDRSTRLEN);
-        printf("multicasting on %s\n", str);
+        printf("multicasting on %02x:%02x:%02x:%02x:%02x:%02x,%s\n",
+                ifaddr.mac_addr[0],
+                ifaddr.mac_addr[1],
+                ifaddr.mac_addr[2],
+                ifaddr.mac_addr[3],
+                ifaddr.mac_addr[4],
+                ifaddr.mac_addr[5],
+                str);
     }
     sender->groupSock.sin_port = htons(SMV_MCAST_PORT);
     {
@@ -142,7 +149,7 @@ smv_sender_t* smv_create_sender(smv_if_addr_t ifaddr, uint16_t version) {
         return sender;
     }
     int ttl = 60;
-    if (setsockopt(sender->sock_fd, IPPROTO_IP, IP_MULTICAST_IF, (char*)&ttl, sizeof(ttl)) < 0) {
+    if (setsockopt(sender->sock_fd, IPPROTO_IP, IP_MULTICAST_TTL, (char*)&ttl, sizeof(ttl)) < 0) {
         perror("Setting ttl");
     }
     return sender;
