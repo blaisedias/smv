@@ -191,8 +191,8 @@ bool smv_update_replicator(smv_replicator_t* replicator, smv_packet_t* packet) {
                 break;
             case SMV_PKT_AUDIO_SAMPLES:
                 if (packet->total_frames - replicator->total_frames_received > ((smv_audio_packet_t*)packet)->sample_count/2) {
-                    printf("R -> %ld %d\n",
-                            packet->total_frames - replicator->total_frames_received,
+                    printf("R -> %llu %d\n",
+                            (long long unsigned)packet->total_frames - replicator->total_frames_received,
                             ((smv_audio_packet_t*)packet)->sample_count/2);
                     fflush(stdout);
                     reset(replicator);
