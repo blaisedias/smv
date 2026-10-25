@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
                         &mac_addr[0], &mac_addr[1], &mac_addr[2],
                         &mac_addr[3], &mac_addr[4], &mac_addr[5])
                     ) {
-                replicators[num_replicators] = smv_create_replicator(mac_addr, receiver);
+                replicators[num_replicators] = smv_create_replicator(mac_addr);
                 if (replicators[num_replicators]) {
                     ++num_replicators;
                     keep_running = true;
