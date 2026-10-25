@@ -152,7 +152,7 @@ smv_packet_t* smv_receive(smv_receiver_t* receiver, uint8_t* buffer, size_t buff
 //----------------------------------------------------------------------------
 // replicator interface
 void smv_destroy_replicator(smv_replicator_t** replicator_ptr);
-smv_replicator_t* smv_create_replicator(mac_address_t mac_addr, smv_receiver_t* receiver);
+smv_replicator_t* smv_create_replicator(mac_address_t mac_addr);
 bool smv_update_replicator(smv_replicator_t* replicator, smv_packet_t* packet);
 
 static inline void mac_address_cpy(mac_address_t dest, mac_address_t src) {

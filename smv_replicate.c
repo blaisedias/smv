@@ -10,7 +10,6 @@ struct smv_replicator_s {
     int shm_fd;
     vis_ext_t* vis_ext;
     vis_t* vis_mmap;
-    smv_receiver_t* receiver;
     mac_address_t mac_addr;
 #ifdef DEBUG
     bool vbo_printed;
@@ -20,7 +19,6 @@ struct smv_replicator_s {
 void smv_destroy_replicator(smv_replicator_t** replicator_ptr) {
     if (replicator_ptr && *replicator_ptr) {
         smv_replicator_t* replicator = *replicator_ptr;
-        replicator->receiver = NULL;
         replicator->vis_mmap = NULL;
         if (replicator->shm_fd > -1) {
             if (replicator->vis_ext != MAP_FAILED) {
@@ -42,7 +40,7 @@ void smv_destroy_replicator(smv_replicator_t** replicator_ptr) {
 }
 
 // derived from squeezelite output_vis.c
-smv_replicator_t* smv_create_replicator(mac_address_t mac_addr, smv_receiver_t* receiver) {
+smv_replicator_t* smv_create_replicator(mac_address_t mac_addr) {
     if (NULL == mac_addr) {
         return NULL;
     }
@@ -54,7 +52,6 @@ smv_replicator_t* smv_create_replicator(mac_address_t mac_addr, smv_receiver_t* 
 
     replicator->shm_fd = -1;
     replicator->vis_ext = MAP_FAILED;
-    replicator->receiver = receiver;
     mac_address_cpy(replicator->mac_addr, mac_addr);
     char shm_path[32];
     snprintf(shm_path, sizeof(shm_path), "/squeezelite-%02x:%02x:%02x:%02x:%02x:%02x", mac_addr[0], mac_addr[1], mac_addr[2],
