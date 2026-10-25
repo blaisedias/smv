@@ -1,36 +1,50 @@
-CFLAGS=-g -O3 -Wall -Wextra -DDEBUG
-all: smv_reflector smv_replicator
+#CFLAGS=-g -O3 -Wall -Wextra -DDEBUG
+# to build with debug invoke make like this
+# 	make OPTS=-DDEBUG
+CFLAGS=-g -O3 -Wall -Wextra $(OPTS)
 
-smv_replicator.c: smv.h
+CPP = g++
+CC = gcc
 
-smv_replicate.c: smv.h
+SRC = .
+BIN_DIR = ./bin
+OBJS_DIR = ./obj
+LIB_DIR = ./lib
 
-smv_reflector.c: smv.h
+all: $(BIN_DIR)/smv_replicator $(BIN_DIR)/smv_reflector 
 
-smv_sender.c: smv.h
 
-smv_receiver.c: smv.h
+$(OBJS_DIR)/%.o: $(SRC)/%.cpp | $(OBJS_DIR)
+	$(CPP) $(CFLAGS) -c -o $(@) $< $(INCLUDES)
 
-smv_sender.o: smv_sender.c
-	gcc $(CFLAGS) -Wall -Wextra -c smv_sender.c
+$(OBJS_DIR)/%.o: %.c | $(OBJS_DIR)
+	$(CC) $(CFLAGS) -c -o $(@) $< $(INCLUDES)
 
-smv_receiver.o: smv_receiver.c
-	gcc $(CFLAGS) -Wall -Wextra -c smv_receiver.c
 
-smv_reflector.o: smv_reflector.c
-	gcc $(CFLAGS) -Wall -Wextra -c smv_reflector.c
+REPLICATOR_OBJS = $(OBJS_DIR)/smv_receiver.o \
+				  $(OBJS_DIR)/smv_replicate.o
 
-smv_replicate.o: smv_replicate.c
-	gcc $(CFLAGS) -Wall -Wextra -c smv_replicate.c
+REFLECTOR_OBJS = $(OBJS_DIR)/smv_sender.o
 
-smv_reflector: smv_reflector.o smv_sender.o
-	gcc $(CFLAGS) -Wall -Wextra -o smv_reflector smv_reflector.o smv_sender.o
 
-smv_replicator: smv_replicator.o smv_receiver.o smv_replicate.o
-	gcc $(CFLAGS) -Wall -Wextra -o smv_replicator smv_replicator.o smv_receiver.o smv_replicate.o
+$(BIN_DIR)/smv_reflector: $(OBJS_DIR)/smv_reflector.o $(REFLECTOR_OBJS) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $(@) $^ 
+
+$(BIN_DIR)/smv_replicator: $(OBJS_DIR)/smv_replicator.o $(REPLICATOR_OBJS) | $(BIN_DIR)
+	$(CC) $(CFLAGS) -o $(@) $^ 
 
 .PHONY: clean
 
 clean:
-	rm -f a.out *.o smv_reflector smv_replicator
+	rm -f $(OBJS_DIR)/*
+	rm -f $(BIN_DIR)/*
+	rm -f $(LIB_DIR)/*
 
+$(BIN_DIR):
+	mkdir -p $(BIN_DIR)
+
+$(OBJS_DIR):
+	mkdir -p $(OBJS_DIR)
+
+$(LIB_DIR):
+	mkdir -p $(LIB_DIR)
